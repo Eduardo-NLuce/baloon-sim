@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>INFLATE-TECH // Simulador de Estructuras</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div id="hud-container">
+        <div class="hud-header">
+            <h2>SYS_STATUS: ACTIVE</h2>
+            <p>SIMULADOR DE MEMBRANAS INFLABLES v1.0.4</p>
+        </div>
+
+        <hr class="hud-divider">
+
+        <div class="control-group">
+            <label class="hud-label">GEOMETRÍA BASE</label>
+            <select id="shape-selector" class="hud-select">
+                <option value="cube">CUBO (BOX)</option>
+                <option value="torus">TORUS (DONUT)</option>
+                <option value="paraboloid">PARABOLOIDE</option>
+                <option value="catenoid">CATENAROIDE</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label class="hud-label">PRESIÓN INTERNA (<span id="val-presion">1.0</span> psi)</label>
+            <input type="range" id="slider-presion" min="0" max="3" step="0.1" value="1">
+        </div>
+
+        <div class="control-group">
+            <label class="hud-label">RESISTENCIA MATERIAL (<span id="val-resistencia">50</span> MPa)</label>
+            <input type="range" id="slider-resistencia" min="10" max="100" step="5" value="50">
+        </div>
+
+        <div class="control-group checkbox-group">
+            <label class="hud-label">
+                <input type="checkbox" id="check-wireframe"> ENTRADA DE MALLA (WIREFRAME)
+            </label>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

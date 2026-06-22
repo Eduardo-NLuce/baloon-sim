@@ -1,0 +1,97 @@
+:root {
+    --neon-cyan: #00f3ff;
+    --neon-glow: rgba(0, 243, 255, 0.2);
+    --bg-dark: rgba(5, 12, 22, 0.85);
+}
+
+body, html {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background-color: #02060d;
+    font-family: 'Courier New', Courier, monospace;
+    color: var(--neon-cyan);
+}
+
+#canvas-container {
+    width: 100vw;
+    height: 100vh;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+}
+
+/* Panel HUD Estilo Videojuego Sci-Fi */
+#hud-container {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 10;
+    width: 320px;
+    background: var(--bg-dark);
+    border: 2px solid var(--neon-cyan);
+    box-shadow: 0 0 15px var(--neon-glow);
+    padding: 20px;
+    backdrop-filter: blur(5px);
+    border-radius: 4px;
+}
+
+.hud-header h2 {
+    margin: 0;
+    font-size: 1.2rem;
+    letter-spacing: 2px;
+    text-shadow: 0 0 8px var(--neon-cyan);
+}
+
+.hud-header p {
+    margin: 5px 0 0 0;
+    font-size: 0.75rem;
+    opacity: 0.7;
+}
+
+.hud-divider {
+    border: 0;
+    height: 1px;
+    background: var(--neon-cyan);
+    margin: 15px 0;
+    opacity: 0.5;
+}
+
+.control-group {
+    margin-bottom: 20px;
+}
+
+.hud-label {
+    display: block;
+    font-size: 0.8rem;
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+}
+
+/* Estilo para Sliders y Selectores */
+.hud-select, input[type="range"] {
+    width: 100%;
+    background: #0a192f;
+    border: 1px solid var(--neon-cyan);
+    color: var(--neon-cyan);
+    padding: 8px;
+    font-family: inherit;
+    box-sizing: border-box;
+}
+
+input[type="range"] {
+    -webkit-appearance: none;
+    height: 6px;
+    background: #0a192f;
+    outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 15px;
+    height: 15px;
+    background: var(--neon-cyan);
+    cursor: pointer;
+    box-shadow: 0 0 8px var(--neon-cyan);
+}

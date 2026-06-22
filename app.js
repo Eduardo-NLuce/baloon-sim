@@ -1,199 +1,197 @@
-// --- CONFIGURACIÓN BASE DE THREE.JS ---
-const container = document.getElementById('canvas-container');
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x02060d);
+const canvas = document.getElementById('field-canvas');
+const ctx = canvas.getContext('2d');
 
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(0, 3, 5);
+// Ajustar tamaño del canvas al navegador
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-container.appendChild(renderer.domElement);
+// --- CONFIGURACIÓN E INICIALIZACIÓN ---
+// Estructura de un polo: x, y, carga (1 = Norte/Positivo, -1 = Sur/Negativo)
+let poles = [
+    { x: window.innerWidth * 0.35, y: window.innerHeight * 0.5, type: 1 },
+    { x: window.innerWidth * 0.65, y: window.innerHeight * 0.5, type: -1 }
+];
 
-const controls = new THREE.OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
+let selectedPole = null;
 
-// Iluminación tecnológica
-const topLight = new THREE.DirectionalLight(0x00f3ff, 1.5);
-topLight.position.set(5, 10, 7);
-scene.add(topLight);
+// Captura de Sliders y UI
+const sliderLineas = document.getElementById('slider-lineas');
+const sliderFuerza = document.getElementById('slider-fuerza');
+const sliderDecaimiento = document.getElementById('slider-decaimiento');
+const sliderTwist = document.getElementById('slider-twist');
+const polesCounter = document.getElementById('poles-counter');
+const btnClear = document.getElementById('btn-clear');
 
-const ambientLight = new THREE.AmbientLight(0x0a192f, 2);
-scene.add(ambientLight);
+// --- MATEMÁTICAS DEL CAMPO MAGNÉTICO INTERACTIVO ---
+function getFieldVector(x, y, fuerza, decaimiento, twist) {
+    let totalFx = 0;
+    let totalFy = 0;
 
-// --- MATEMÁTICAS PARA FORMAS PERSONALIZADAS ---
-// Paraboloide: z = x^2 + y^2
-function createParaboloidGeometry() {
-    const geometry = new THREE.BufferGeometry();
-    const vertices = [];
-    const indices = [];
-    const uSegments = 30, vSegments = 30;
+    // Aquí calculamos la interacción acumulada de TODOS los polos sobre este punto del espacio
+    for (let pole of poles) {
+        let dx = x - pole.x;
+        let dy = y - pole.y;
+        let distance = Math.sqrt(dx * dx + dy * dy);
 
-    for (let i = 0; i <= uSegments; i++) {
-        let u = (i / uSegments) * 2 - 1; // de -1 a 1
-        for (let j = 0; j <= vSegments; j++) {
-            let v = (j / vSegments) * 2 - 1; // de -1 a 1
-            let x = u;
-            let y = v;
-            let z = (x*x + y*y) * 0.5; // Ecuación matemática
-            vertices.push(x, z, y); // Intercambio z por y para que apunte hacia arriba
+        if (distance < 5) continue; // Evitar división por cero en el centro exacto
+
+        // Ley de decaimiento personalizada de la fuerza (física de campo de partículas)
+        let magnitude = (fuerza * pole.type) / Math.pow(distance, decaimiento);
+
+        // Vector normal del campo magnético
+        let fx = (dx / distance) * magnitude;
+        let fy = (dy / distance) * magnitude;
+
+        // Efecto Twist (Torsión rotacional matemática en el campo)
+        if (twist !== 0) {
+            let tx = -dy / distance; // Vector perpendicular
+            let ty = dx / distance;
+            fx += tx * magnitude * twist;
+            fy += ty * magnitude * twist;
         }
+
+        totalFx += fx;
+        totalFy += fy;
     }
 
-    for (let i = 0; i < uSegments; i++) {
-        for (let j = 0; j < vSegments; j++) {
-            let a = i * (vSegments + 1) + j;
-            let b = i * (vSegments + 1) + j + 1;
-            let c = (i + 1) * (vSegments + 1) + j;
-            let d = (i + 1) * (vSegments + 1) + j + 1;
-            indices.push(a, c, b);
-            indices.push(b, c, d);
-        }
-    }
-
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-    geometry.setIndex(indices);
-    geometry.computeVertexNormals();
-    return geometry;
+    return { x: totalFx, y: totalFy };
 }
 
-// Catenaroide: Rotación de una catenaria (forma de cadena colgante)
-function createCatenoidGeometry() {
-    const geometry = new THREE.BufferGeometry();
-    const vertices = [];
-    const indices = [];
-    const uSegments = 40, vSegments = 40;
+// --- MÉTODO DE RENDERIZADO POR INTEGRACIÓN DE LÍNEAS ---
+function drawMagneticField() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    for (let i = 0; i <= uSegments; i++) {
-        let u = (i / uSegments) * 2 - 1; // altura de -1 a 1
-        let c = 0.6; // constante de curvatura
-        let r = c * Math.cosh(u / c); // Radio de la sección según el coseno hiperbólico
-        
-        for (let j = 0; j <= vSegments; j++) {
-            let theta = (j / vSegments) * Math.PI * 2;
-            let x = r * Math.cos(theta);
-            let y = u;
-            let z = r * Math.sin(theta);
-            vertices.push(x, y, z);
+    const numLines = parseInt(sliderLineas.value);
+    const fuerza = parseFloat(sliderFuerza.value);
+    const decaimiento = parseFloat(sliderDecaimiento.value);
+    const twist = parseFloat(sliderTwist.value);
+
+    // Actualizar datos del HUD
+    document.getElementById('val-lineas').innerText = numLines;
+    document.getElementById('val-fuerza').innerText = fuerza;
+    document.getElementById('val-decaimiento').innerText = decaimiento.toFixed(1);
+    document.getElementById('val-twist').innerText = twist.toFixed(1);
+    polesCounter.innerText = `POLOS ACTIVOS: ${poles.length} / 10`;
+
+    // Dibujar las líneas de flujo
+    ctx.lineWidth = 1;
+    
+    // Generamos puntos de inicio distribuidos en una cuadrícula matemática por toda la pantalla
+    const columns = Math.ceil(Math.sqrt(numLines * (canvas.width / canvas.height)));
+    const rows = Math.ceil(numLines / columns);
+    
+    for (let c = 0; c < columns; c++) {
+        for (let r = 0; r < rows; r++) {
+            // Punto de inicio de la línea de campo
+            let x = (canvas.width / columns) * (c + 0.5);
+            let y = (canvas.height / rows) * (r + 0.5);
+
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+
+            // Trazamos el camino de la línea paso a paso siguiendo los vectores integrados
+            let steps = 40; // Longitud máxima del trazo por línea
+            let inField = true;
+
+            for (let s = 0; s < steps && inField; s++) {
+                let v = getFieldVector(x, y, fuerza, decaimiento, twist);
+                let vMag = Math.sqrt(v.x * v.x + v.y * v.y);
+
+                if (vMag < 0.01) break; // Campo muy débil, parar
+
+                // Normalizar vector y definir tamaño del paso de dibujo (step size)
+                let stepSize = 8;
+                x += (v.x / vMag) * stepSize;
+                y += (v.y / vMag) * stepSize;
+
+                ctx.lineTo(x, y);
+
+                // Si se sale de los bordes, dejamos de calcular esa línea
+                if (x < 0 || x > canvas.width || y < 0 || y > canvas.height) {
+                    inField = false;
+                }
+            }
+
+            // Cambiar color de línea estilo osciloscopio de neón
+            ctx.strokeStyle = 'rgba(57, 255, 20, 0.18)';
+            ctx.stroke();
         }
     }
 
-    for (let i = 0; i < uSegments; i++) {
-        for (let j = 0; j < vSegments; j++) {
-            let a = i * (vSegments + 1) + j;
-            let b = i * (vSegments + 1) + j + 1;
-            let c = (i + 1) * (vSegments + 1) + j;
-            let d = (i + 1) * (vSegments + 1) + j + 1;
-            indices.push(a, b, c);
-            indices.push(b, d, c);
+    // Dibujar los nodos físicos de los Polos (Norte en Verde Brillante, Sur en Rojo/Gris Tecnológico)
+    for (let pole of poles) {
+        ctx.beginPath();
+        ctx.arc(pole.x, pole.y, 10, 0, Math.PI * 2);
+        if (pole.type === 1) {
+            ctx.fillStyle = '#39ff14'; // Norte / +
+            ctx.shadowColor = '#39ff14';
+        } else {
+            ctx.fillStyle = '#ff3333'; // Sur / -
+            ctx.shadowColor = '#ff3333';
         }
-    }
+        ctx.shadowBlur = 15;
+        ctx.fill();
+        ctx.shadowBlur = 0; // Reset para las líneas
 
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-    geometry.setIndex(indices);
-    geometry.computeVertexNormals();
-    return geometry;
+        // Anillo de diseño
+        ctx.beginPath();
+        ctx.arc(pole.x, pole.y, 16, 0, Math.PI * 2);
+        ctx.strokeStyle = pole.type === 1 ? 'rgba(57, 255, 20, 0.4)' : 'rgba(255, 51, 51, 0.4)';
+        ctx.stroke();
+    }
 }
 
-// --- REPERTORIO DE GEOMETRÍAS ---
-const geometries = {
-    cube: new THREE.BoxGeometry(1.5, 1.5, 1.5, 15, 15, 15), // Segmentado para que se deforme fluido
-    torus: new THREE.TorusGeometry(1, 0.3, 16, 100),
-    paraboloid: createParaboloidGeometry(),
-    catenoid: createCatenoidGeometry()
-};
+// --- INTERACCIÓN DE RATÓN / TOUCH ---
 
-// Material futurista semitransparente con brillo
-const material = new THREE.MeshPhongMaterial({
-    color: 0x00f3ff,
-    wireframe: false,
-    transparent: true,
-    opacity: 0.75,
-    side: THREE.DoubleSide,
-    shininess: 100
+// Detectar si hacemos clic cerca de un polo existente para arrastrarlo, o crear uno nuevo
+canvas.addEventListener('mousedown', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    // Verificar si se hizo clic en un polo existente para moverlo
+    for (let pole of poles) {
+        let dist = Math.sqrt((mouseX - pole.x) ** 2 + (mouseY - pole.y) ** 2);
+        if (dist < 20) {
+            selectedPole = pole;
+            return;
+        }
+    }
+
+    // Si no tocamos un polo y hay espacio, creamos uno nuevo alternando polaridad
+    if (poles.length < 10) {
+        const nextType = poles.length % 2 === 0 ? 1 : -1;
+        poles.push({ x: mouseX, y: mouseY, type: nextType });
+        drawMagneticField();
+    }
 });
 
-let currentMesh = new THREE.Mesh(geometries.cube, material);
-scene.add(currentMesh);
-
-// Guardamos los vértices originales para calcular la "deformación de inflación"
-let originalPositions = currentMesh.geometry.attributes.position.clone();
-
-// --- LÓGICA DE INTERFAZ Y SIMULACIÓN ---
-const shapeSelector = document.getElementById('shape-selector');
-const sliderPresion = document.getElementById('slider-presion');
-const sliderResistencia = document.getElementById('slider-resistencia');
-const checkWireframe = document.getElementById('check-wireframe');
-
-function updateGeometry() {
-    scene.remove(currentMesh);
-    const selectedShape = shapeSelector.value;
-    currentMesh = new THREE.Mesh(geometries[selectedShape], material);
-    scene.add(currentMesh);
-    originalPositions = currentMesh.geometry.attributes.position.clone();
-    aplicarSimulacion();
-}
-
-function aplicarSimulacion() {
-    const presion = parseFloat(sliderPresion.value);
-    const resistencia = parseFloat(sliderResistencia.value);
-    
-    // Actualizar textos numéricos en el HUD
-    document.getElementById('val-presion').innerText = presion.toFixed(1);
-    document.getElementById('val-resistencia').innerText = resistencia;
-
-    const positionAttribute = currentMesh.geometry.attributes.position;
-    const normalAttribute = currentMesh.geometry.attributes.normal;
-
-    // Efecto inflable básico: desplazar vértices a lo largo de sus normales según la presión y resistencia
-    // Fórmula simple de deformación: NuevaPos = PosOriginal + (Normal * Presión / Resistencia) * Factor
-    const factorDeformacion = (presion / resistencia) * 8; 
-
-    for (let i = 0; i < positionAttribute.count; i++) {
-        let x = originalPositions.getX(i);
-        let y = originalPositions.getY(i);
-        let z = originalPositions.getZ(i);
-
-        let nx = normalAttribute.getX(i);
-        let ny = normalAttribute.getY(i);
-        let nz = normalAttribute.getZ(i);
-
-        positionAttribute.setXYZ(
-            i,
-            x + nx * factorDeformacion,
-            y + ny * factorDeformacion,
-            z + nz * factorDeformacion
-        );
+canvas.addEventListener('mousemove', (e) => {
+    if (selectedPole) {
+        const rect = canvas.getBoundingClientRect();
+        selectedPole.x = e.clientX - rect.left;
+        selectedPole.y = e.clientY - rect.top;
+        drawMagneticField();
     }
-    positionAttribute.needsUpdate = true;
-}
-
-// Event Listeners
-shapeSelector.addEventListener('change', updateGeometry);
-sliderPresion.addEventListener('input', aplicarSimulacion);
-sliderResistencia.addEventListener('input', aplicarSimulacion);
-checkWireframe.addEventListener('change', (e) => {
-    material.wireframe = e.target.checked;
 });
 
-// Auto-ajuste de pantalla
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+window.addEventListener('mouseup', () => {
+    selectedPole = null;
 });
 
-// --- BUCLE DE ANIMACIÓN (LOOP) ---
-function animate() {
-    requestAnimationFrame(animate);
-    
-    // Rotación sutil automática para el look de "exhibición de laboratorio"
-    currentMesh.rotation.y += 0.005;
-    
-    controls.update();
-    renderer.render(scene, camera);
-}
+// Listener de Sliders para redibujar al cambiar valores
+[sliderLineas, sliderFuerza, sliderDecaimiento, sliderTwist].forEach(slider => {
+    slider.addEventListener('input', drawMagneticField);
+});
 
-// Iniciar
-aplicarSimulacion();
-animate();
+btnClear.addEventListener('click', () => {
+    poles = [];
+    drawMagneticField();
+});
+
+// Render inicial
+drawMagneticField();
